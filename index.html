@@ -269,6 +269,57 @@
       50% { opacity: 0.6; }
     }
 
+    /* Expiring Codes Warning */
+    .expiring-banner {
+      background: linear-gradient(135deg, rgba(255, 107, 107, 0.15) 0%, rgba(255, 107, 107, 0.05) 100%);
+      border-radius: 16px;
+      padding: 14px 16px;
+      margin-bottom: 24px;
+      border: 1px solid var(--accent-red);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .expiring-icon {
+      font-size: 1.5rem;
+      flex-shrink: 0;
+    }
+
+    .expiring-info {
+      flex: 1;
+    }
+
+    .expiring-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--accent-red);
+    }
+
+    .expiring-count {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    .expiring-action {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: none;
+      background: var(--accent-red);
+      color: white;
+      font-family: var(--font-body);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .expiring-action:hover {
+      opacity: 0.9;
+      transform: scale(1.02);
+    }
+
     /* Action Buttons */
     .action-buttons {
       display: grid;
@@ -755,6 +806,38 @@
       color: var(--text-muted);
     }
 
+    .flash-toggle {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(0, 0, 0, 0.6);
+      color: var(--text-primary);
+      font-size: 1.3rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      z-index: 10;
+    }
+
+    .flash-toggle:hover {
+      background: rgba(0, 0, 0, 0.8);
+    }
+
+    .flash-toggle.active {
+      background: var(--gold);
+      color: var(--bg-dark);
+    }
+
+    .flash-toggle.hidden {
+      display: none;
+    }
+
     /* Manual Entry Form */
     .form-group {
       margin-bottom: 20px;
@@ -1207,6 +1290,16 @@
         </div>
       </div>
 
+      <!-- Expiring Codes Warning -->
+      <div class="expiring-banner" id="expiringBanner" style="display: none;">
+        <div class="expiring-icon">⚠️</div>
+        <div class="expiring-info">
+          <div class="expiring-label">Codes Expiring Soon</div>
+          <div class="expiring-count"><span id="expiringCount">0</span> codes expire within 7 days</div>
+        </div>
+        <button class="expiring-action" onclick="filterExpiringSoon()">View</button>
+      </div>
+
       <!-- Action Buttons -->
       <div class="action-buttons">
         <button class="action-btn primary" onclick="openScanner()">
@@ -1357,7 +1450,7 @@
           <div class="settings-item">
             <div class="settings-item-info">
               <div class="settings-item-label">Version</div>
-              <div class="settings-item-desc">CA 2nd Chance Tracker v1.1.0</div>
+              <div class="settings-item-desc">CA 2nd Chance Tracker v1.2.0</div>
             </div>
           </div>
           <div class="settings-item">
@@ -1405,6 +1498,9 @@
           <div class="scanner-overlay">
             <div class="scanner-frame"></div>
           </div>
+          <button class="flash-toggle" id="flashToggle" onclick="toggleFlash()">
+            <span class="flash-icon">🔦</span>
+          </button>
         </div>
         <p class="scanner-hint">Position the barcode within the frame</p>
         <div style="margin-top: 16px;">
@@ -1475,6 +1571,8 @@
     let codeReader = null;
     let deferredPrompt = null;
     let currentFilter = 'all';
+    let currentVideoTrack = null;
+    let flashEnabled = false;
 
     // Load data from localStorage
     function loadData() {
@@ -1774,6 +1872,17 @@
         batchCopyBtn.style.display = 'none';
       }
 
+      // Check for codes expiring within 7 days
+      const expiringCodes = getExpiringCodes();
+      const expiringBanner = document.getElementById('expiringBanner');
+      const expiringCountEl = document.getElementById('expiringCount');
+      if (expiringCodes.length > 0) {
+        expiringBanner.style.display = 'flex';
+        expiringCountEl.textContent = expiringCodes.length;
+      } else {
+        expiringBanner.style.display = 'none';
+      }
+
       const progressPercent = (thisMonth / 500) * 100;
       const progressFill = document.getElementById('progressFill');
       progressFill.style.width = `${progressPercent}%`;
@@ -1781,6 +1890,25 @@
 
       updateDeadline();
       updateHistoryStats();
+    }
+
+    function getExpiringCodes() {
+      const now = new Date();
+      const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      return codes.filter(c => {
+        if (c.status !== 'pending') return false;
+        const expiryDate = new Date(c.expiresAt);
+        return expiryDate > now && expiryDate <= sevenDaysFromNow;
+      });
+    }
+
+    function filterExpiringSoon() {
+      // Set filter to pending and scroll to codes
+      currentFilter = 'pending';
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelector('.tab[data-filter="pending"]').classList.add('active');
+      renderCodes();
+      showToast(`Showing ${getExpiringCodes().length} expiring codes`, 'success');
     }
 
     function getThisMonthCount() {
@@ -1877,7 +2005,11 @@
 
     async function openScanner() {
       document.getElementById('scannerModal').classList.add('active');
-      
+      const flashToggle = document.getElementById('flashToggle');
+      flashToggle.classList.add('hidden');
+      flashToggle.classList.remove('active');
+      flashEnabled = false;
+
       try {
         const video = document.getElementById('scannerVideo');
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -1885,7 +2017,14 @@
         });
         video.srcObject = stream;
         await video.play();
-        
+
+        // Get video track and check for torch capability
+        currentVideoTrack = stream.getVideoTracks()[0];
+        const capabilities = currentVideoTrack.getCapabilities?.();
+        if (capabilities?.torch) {
+          flashToggle.classList.remove('hidden');
+        }
+
         // Initialize barcode reader
         if (typeof ZXing !== 'undefined') {
           codeReader = new ZXing.BrowserMultiFormatReader();
@@ -1893,7 +2032,7 @@
             if (result) {
               const code = result.getText();
               closeScanner();
-              
+
               // Open manual entry with pre-filled code
               document.getElementById('manualEntryModal').classList.add('active');
               document.getElementById('codeInput').value = code;
@@ -1909,15 +2048,33 @@
       }
     }
 
+    async function toggleFlash() {
+      if (!currentVideoTrack) return;
+
+      try {
+        flashEnabled = !flashEnabled;
+        await currentVideoTrack.applyConstraints({
+          advanced: [{ torch: flashEnabled }]
+        });
+        document.getElementById('flashToggle').classList.toggle('active', flashEnabled);
+      } catch (err) {
+        console.error('Flash toggle error:', err);
+        showToast('Could not toggle flash', 'error');
+      }
+    }
+
     function closeScanner() {
       document.getElementById('scannerModal').classList.remove('active');
-      
+
       const video = document.getElementById('scannerVideo');
       if (video.srcObject) {
         video.srcObject.getTracks().forEach(track => track.stop());
         video.srcObject = null;
       }
-      
+
+      currentVideoTrack = null;
+      flashEnabled = false;
+
       if (codeReader) {
         codeReader.reset();
         codeReader = null;
@@ -2027,6 +2184,27 @@
     // SWIPE GESTURES
     // ==========================================
 
+    function haptic(type = 'light') {
+      if (!navigator.vibrate) return;
+      switch (type) {
+        case 'light':
+          navigator.vibrate(10);
+          break;
+        case 'medium':
+          navigator.vibrate(25);
+          break;
+        case 'heavy':
+          navigator.vibrate([30, 10, 30]);
+          break;
+        case 'success':
+          navigator.vibrate([15, 50, 30]);
+          break;
+        case 'error':
+          navigator.vibrate([50, 30, 50]);
+          break;
+      }
+    }
+
     function initSwipeHandlers() {
       const containers = document.querySelectorAll('.swipe-container');
 
@@ -2038,6 +2216,7 @@
         let startX = 0;
         let currentX = 0;
         let isDragging = false;
+        let thresholdCrossed = false;
 
         const SWIPE_THRESHOLD = 80;
         const MAX_SWIPE = 100;
@@ -2048,6 +2227,7 @@
 
           startX = e.touches[0].clientX;
           isDragging = true;
+          thresholdCrossed = false;
           card.classList.add('swiping');
           container.classList.add('swiping');
         }
@@ -2066,6 +2246,15 @@
             currentX = Math.max(-MAX_SWIPE, Math.min(0, currentX));
           }
 
+          // Haptic feedback when crossing threshold
+          const crossingThreshold = Math.abs(currentX) >= SWIPE_THRESHOLD;
+          if (crossingThreshold && !thresholdCrossed) {
+            haptic('medium');
+            thresholdCrossed = true;
+          } else if (!crossingThreshold && thresholdCrossed) {
+            thresholdCrossed = false;
+          }
+
           card.style.transform = `translateX(${currentX}px)`;
         }
 
@@ -2078,12 +2267,14 @@
           // Check if threshold met
           if (currentX >= SWIPE_THRESHOLD && status === 'pending') {
             // Swipe right - mark as entered
+            haptic('success');
             card.style.transform = `translateX(${MAX_SWIPE}px)`;
             setTimeout(() => {
               markAsEntered(id);
             }, 150);
           } else if (currentX <= -SWIPE_THRESHOLD) {
             // Swipe left - delete
+            haptic('error');
             card.style.transform = `translateX(-${MAX_SWIPE}px)`;
             setTimeout(() => {
               deleteCode(id);
@@ -2094,6 +2285,7 @@
           }
 
           currentX = 0;
+          thresholdCrossed = false;
         }
 
         card.addEventListener('touchstart', handleTouchStart, { passive: true });
