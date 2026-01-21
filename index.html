@@ -1,0 +1,2021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="Track and manage your California Lottery 2nd Chance codes">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.svg">
+  <link rel="icon" type="image/svg+xml" href="icon-192.svg">
+  <title>CA 2nd Chance Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@anthropic-ai/sdk@0.24.3/dist/index.global.js"></script>
+  <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+  <style>
+    :root {
+      --bg-dark: #0d0d1a;
+      --bg-card: #1a1a2e;
+      --bg-card-hover: #242442;
+      --gold: #f4c430;
+      --gold-dim: #c9a227;
+      --gold-glow: rgba(244, 196, 48, 0.3);
+      --accent-green: #00d68f;
+      --accent-red: #ff6b6b;
+      --accent-blue: #4dabf7;
+      --accent-purple: #9775fa;
+      --text-primary: #ffffff;
+      --text-secondary: #a0a0b8;
+      --text-muted: #6c6c8a;
+      --border: #2a2a4a;
+      --font-display: 'Bebas Neue', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --font-body: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      min-height: 100vh;
+      min-height: 100dvh;
+      overflow-x: hidden;
+    }
+
+    /* Background Pattern */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: 
+        radial-gradient(ellipse at 20% 20%, rgba(244, 196, 48, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 80%, rgba(151, 117, 250, 0.06) 0%, transparent 50%),
+        repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 100px,
+          rgba(255,255,255,0.01) 100px,
+          rgba(255,255,255,0.01) 101px
+        ),
+        repeating-linear-gradient(
+          90deg,
+          transparent,
+          transparent 100px,
+          rgba(255,255,255,0.01) 100px,
+          rgba(255,255,255,0.01) 101px
+        );
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .app-container {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 0 16px 100px;
+      position: relative;
+    }
+
+    /* Header */
+    .header {
+      padding: 20px 0;
+      text-align: center;
+      position: sticky;
+      top: 0;
+      background: linear-gradient(to bottom, var(--bg-dark) 0%, var(--bg-dark) 80%, transparent 100%);
+      z-index: 100;
+    }
+
+    .logo {
+      font-family: var(--font-display);
+      font-size: 2.5rem;
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, var(--gold) 0%, #fff 50%, var(--gold) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-shadow: 0 0 40px var(--gold-glow);
+      line-height: 1;
+    }
+
+    .logo-sub {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    /* Stats Bar */
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin: 16px 0 24px;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border-radius: 16px;
+      padding: 16px 12px;
+      text-align: center;
+      border: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--gold), var(--gold-dim));
+      opacity: 0.6;
+    }
+
+    .stat-value {
+      font-family: var(--font-display);
+      font-size: 2rem;
+      color: var(--gold);
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-top: 6px;
+    }
+
+    .stat-card.warning .stat-value {
+      color: var(--accent-red);
+    }
+
+    .stat-card.success .stat-value {
+      color: var(--accent-green);
+    }
+
+    /* Monthly Progress */
+    .monthly-progress {
+      background: var(--bg-card);
+      border-radius: 20px;
+      padding: 20px;
+      margin-bottom: 24px;
+      border: 1px solid var(--border);
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .progress-title {
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .progress-count {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--gold);
+    }
+
+    .progress-bar {
+      height: 8px;
+      background: var(--bg-dark);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--gold), var(--accent-green));
+      border-radius: 4px;
+      transition: width 0.5s ease;
+    }
+
+    .progress-fill.warning {
+      background: linear-gradient(90deg, var(--gold), var(--accent-red));
+    }
+
+    /* Deadline Banner */
+    .deadline-banner {
+      background: linear-gradient(135deg, var(--bg-card) 0%, #1e1e3a 100%);
+      border-radius: 16px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .deadline-icon {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      flex-shrink: 0;
+    }
+
+    .deadline-info {
+      flex: 1;
+    }
+
+    .deadline-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .deadline-time {
+      font-family: var(--font-mono);
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-top: 2px;
+    }
+
+    .deadline-time.urgent {
+      color: var(--accent-red);
+      animation: pulse 1s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    /* Action Buttons */
+    .action-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .action-btn {
+      padding: 16px;
+      border-radius: 16px;
+      border: none;
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .action-btn.primary {
+      background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+      color: var(--bg-dark);
+    }
+
+    .action-btn.primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px var(--gold-glow);
+    }
+
+    .action-btn.secondary {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+
+    .action-btn.secondary:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--gold);
+    }
+
+    .action-btn-icon {
+      font-size: 1.5rem;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .tab {
+      padding: 10px 20px;
+      border-radius: 24px;
+      border: none;
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      font-family: var(--font-body);
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+      border: 1px solid var(--border);
+    }
+
+    .tab.active {
+      background: var(--gold);
+      color: var(--bg-dark);
+      border-color: var(--gold);
+    }
+
+    .tab:hover:not(.active) {
+      background: var(--bg-card-hover);
+    }
+
+    /* Code List */
+    .code-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .code-card {
+      background: var(--bg-card);
+      border-radius: 16px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      transition: all 0.2s ease;
+    }
+
+    .code-card:hover {
+      border-color: var(--gold);
+      background: var(--bg-card-hover);
+    }
+
+    .code-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .code-type {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .code-type-badge {
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .code-type-badge.scratchers {
+      background: rgba(151, 117, 250, 0.2);
+      color: var(--accent-purple);
+    }
+
+    .code-type-badge.superlotto {
+      background: rgba(77, 171, 247, 0.2);
+      color: var(--accent-blue);
+    }
+
+    .code-type-badge.fantasy5 {
+      background: rgba(0, 214, 143, 0.2);
+      color: var(--accent-green);
+    }
+
+    .code-status {
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .code-status.pending {
+      background: rgba(244, 196, 48, 0.2);
+      color: var(--gold);
+    }
+
+    .code-status.entered {
+      background: rgba(0, 214, 143, 0.2);
+      color: var(--accent-green);
+    }
+
+    .code-status.expired {
+      background: rgba(255, 107, 107, 0.2);
+      color: var(--accent-red);
+    }
+
+    .code-value {
+      font-family: var(--font-mono);
+      font-size: 1.2rem;
+      font-weight: 600;
+      letter-spacing: 2px;
+      color: var(--text-primary);
+      margin-bottom: 12px;
+      word-break: break-all;
+    }
+
+    .code-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .code-date {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .code-expiry {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .code-expiry.soon {
+      color: var(--accent-red);
+    }
+
+    .code-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .code-action-btn {
+      flex: 1;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      font-family: var(--font-body);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .code-action-btn.copy {
+      background: rgba(244, 196, 48, 0.15);
+      color: var(--gold);
+    }
+
+    .code-action-btn.copy:hover {
+      background: rgba(244, 196, 48, 0.25);
+    }
+
+    .code-action-btn.mark {
+      background: rgba(0, 214, 143, 0.15);
+      color: var(--accent-green);
+    }
+
+    .code-action-btn.mark:hover {
+      background: rgba(0, 214, 143, 0.25);
+    }
+
+    .code-action-btn.delete {
+      background: rgba(255, 107, 107, 0.15);
+      color: var(--accent-red);
+    }
+
+    .code-action-btn.delete:hover {
+      background: rgba(255, 107, 107, 0.25);
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--text-muted);
+    }
+
+    .empty-icon {
+      font-size: 4rem;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    .empty-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .empty-text {
+      font-size: 0.9rem;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal {
+      background: var(--bg-card);
+      border-radius: 24px 24px 0 0;
+      width: 100%;
+      max-width: 480px;
+      max-height: 90vh;
+      overflow-y: auto;
+      transform: translateY(100%);
+      transition: transform 0.3s ease;
+    }
+
+    .modal-overlay.active .modal {
+      transform: translateY(0);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--bg-card);
+      z-index: 10;
+    }
+
+    .modal-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+
+    .modal-close {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: none;
+      background: var(--bg-dark);
+      color: var(--text-secondary);
+      font-size: 1.2rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-body {
+      padding: 24px;
+    }
+
+    /* Scanner */
+    .scanner-container {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1;
+      background: var(--bg-dark);
+      border-radius: 16px;
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+
+    .scanner-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .scanner-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .scanner-frame {
+      width: 80%;
+      height: 30%;
+      border: 2px solid var(--gold);
+      border-radius: 8px;
+      position: relative;
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+    }
+
+    .scanner-frame::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--gold);
+      animation: scan 2s ease-in-out infinite;
+    }
+
+    @keyframes scan {
+      0%, 100% { transform: translateY(-50px); opacity: 0.5; }
+      50% { transform: translateY(50px); opacity: 1; }
+    }
+
+    .scanner-hint {
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    /* Manual Entry Form */
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 14px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 1.1rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px var(--gold-glow);
+    }
+
+    .form-input::placeholder {
+      color: var(--text-muted);
+      letter-spacing: 1px;
+    }
+
+    .form-select {
+      width: 100%;
+      padding: 14px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 0.95rem;
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23a0a0b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+    }
+
+    .form-select:focus {
+      outline: none;
+      border-color: var(--gold);
+    }
+
+    .submit-btn {
+      width: 100%;
+      padding: 16px;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+      color: var(--bg-dark);
+      font-family: var(--font-body);
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .submit-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px var(--gold-glow);
+    }
+
+    .submit-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      padding: 14px 24px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      z-index: 2000;
+      opacity: 0;
+      transition: all 0.3s ease;
+      border: 1px solid var(--border);
+    }
+
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    .toast.success {
+      border-color: var(--accent-green);
+    }
+
+    .toast.error {
+      border-color: var(--accent-red);
+    }
+
+    /* Bottom Nav */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--bg-card);
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-around;
+      padding: 12px 0 max(12px, env(safe-area-inset-bottom));
+      z-index: 500;
+    }
+
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 16px;
+      border: none;
+      background: none;
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      cursor: pointer;
+      transition: color 0.2s ease;
+    }
+
+    .nav-item.active {
+      color: var(--gold);
+    }
+
+    .nav-item-icon {
+      font-size: 1.4rem;
+    }
+
+    /* Settings */
+    .settings-section {
+      margin-bottom: 24px;
+    }
+
+    .settings-title {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+    }
+
+    .settings-card {
+      background: var(--bg-card);
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .settings-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .settings-item:last-child {
+      border-bottom: none;
+    }
+
+    .settings-item-info {
+      flex: 1;
+    }
+
+    .settings-item-label {
+      font-weight: 500;
+      margin-bottom: 2px;
+    }
+
+    .settings-item-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .toggle {
+      width: 48px;
+      height: 28px;
+      background: var(--bg-dark);
+      border-radius: 14px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .toggle.active {
+      background: var(--accent-green);
+    }
+
+    .toggle::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 22px;
+      height: 22px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s ease;
+    }
+
+    .toggle.active::after {
+      transform: translateX(20px);
+    }
+
+    .danger-btn {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid var(--accent-red);
+      background: rgba(255, 107, 107, 0.1);
+      color: var(--accent-red);
+      font-family: var(--font-body);
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .danger-btn:hover {
+      background: rgba(255, 107, 107, 0.2);
+    }
+
+    /* History Chart */
+    .history-chart {
+      background: var(--bg-card);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 24px;
+      border: 1px solid var(--border);
+    }
+
+    .chart-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .chart-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      height: 120px;
+    }
+
+    .chart-bar-wrapper {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .chart-bar {
+      width: 100%;
+      background: linear-gradient(to top, var(--gold), var(--gold-dim));
+      border-radius: 4px 4px 0 0;
+      min-height: 4px;
+      transition: height 0.3s ease;
+    }
+
+    .chart-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    /* Quick Links */
+    .quick-links {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .quick-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      background: var(--bg-card);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      text-decoration: none;
+      color: var(--text-primary);
+      font-weight: 500;
+      font-size: 0.85rem;
+      transition: all 0.2s ease;
+    }
+
+    .quick-link:hover {
+      border-color: var(--gold);
+      background: var(--bg-card-hover);
+    }
+
+    .quick-link-icon {
+      font-size: 1.5rem;
+    }
+
+    /* Responsive */
+    @media (min-width: 480px) {
+      .modal {
+        border-radius: 24px;
+        margin: auto;
+        max-height: 80vh;
+      }
+
+      .modal-overlay {
+        align-items: center;
+        padding: 20px;
+      }
+    }
+
+    /* View transitions */
+    .view {
+      display: none;
+    }
+
+    .view.active {
+      display: block;
+      animation: fadeIn 0.2s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    /* Install prompt */
+    .install-prompt {
+      position: fixed;
+      bottom: 80px;
+      left: 16px;
+      right: 16px;
+      background: var(--bg-card);
+      border-radius: 16px;
+      padding: 16px 20px;
+      border: 1px solid var(--gold);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      z-index: 900;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .install-prompt.hidden {
+      display: none;
+    }
+
+    .install-prompt-content {
+      flex: 1;
+    }
+
+    .install-prompt-title {
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .install-prompt-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .install-prompt-btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      background: var(--gold);
+      color: var(--bg-dark);
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .install-prompt-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">2ND CHANCE</div>
+      <div class="logo-sub">California Lottery Tracker</div>
+    </header>
+
+    <!-- Home View -->
+    <div class="view active" id="homeView">
+      <!-- Stats -->
+      <div class="stats-bar">
+        <div class="stat-card">
+          <div class="stat-value" id="pendingCount">0</div>
+          <div class="stat-label">Pending</div>
+        </div>
+        <div class="stat-card success">
+          <div class="stat-value" id="enteredCount">0</div>
+          <div class="stat-label">Entered</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="thisMonthCount">0</div>
+          <div class="stat-label">This Month</div>
+        </div>
+      </div>
+
+      <!-- Monthly Progress -->
+      <div class="monthly-progress">
+        <div class="progress-header">
+          <span class="progress-title">Monthly Limit</span>
+          <span class="progress-count"><span id="monthlyUsed">0</span> / 500</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- Deadline Banner -->
+      <div class="deadline-banner">
+        <div class="deadline-icon">⏰</div>
+        <div class="deadline-info">
+          <div class="deadline-label">Next Entry Deadline</div>
+          <div class="deadline-time" id="deadlineTime">Loading...</div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="action-buttons">
+        <button class="action-btn primary" onclick="openScanner()">
+          <span class="action-btn-icon">📷</span>
+          Scan Ticket
+        </button>
+        <button class="action-btn secondary" onclick="openManualEntry()">
+          <span class="action-btn-icon">⌨️</span>
+          Manual Entry
+        </button>
+      </div>
+
+      <!-- Quick Links -->
+      <div class="quick-links">
+        <a href="https://www.calottery.com/2nd-chance" target="_blank" rel="noopener" class="quick-link">
+          <span class="quick-link-icon">🌐</span>
+          <span>Enter Codes</span>
+        </a>
+        <a href="https://www.calottery.com/2nd-chance/draws-and-winners" target="_blank" rel="noopener" class="quick-link">
+          <span class="quick-link-icon">🏆</span>
+          <span>Check Winners</span>
+        </a>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab active" data-filter="all">All Codes</button>
+        <button class="tab" data-filter="pending">Pending</button>
+        <button class="tab" data-filter="entered">Entered</button>
+        <button class="tab" data-filter="expired">Expired</button>
+      </div>
+
+      <!-- Code List -->
+      <div class="code-list" id="codeList">
+        <div class="empty-state">
+          <div class="empty-icon">🎰</div>
+          <div class="empty-title">No codes yet</div>
+          <div class="empty-text">Scan or enter your first 2nd Chance code</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- History View -->
+    <div class="view" id="historyView">
+      <h2 style="margin-bottom: 20px; font-size: 1.3rem;">History & Stats</h2>
+
+      <!-- History Chart -->
+      <div class="history-chart">
+        <div class="chart-title">Codes Entered (Last 6 Months)</div>
+        <div class="chart-bars" id="historyChart"></div>
+      </div>
+
+      <!-- Stats Summary -->
+      <div class="stats-bar" style="grid-template-columns: 1fr 1fr; margin-bottom: 24px;">
+        <div class="stat-card">
+          <div class="stat-value" id="totalAllTime">0</div>
+          <div class="stat-label">All-Time Codes</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="avgPerMonth">0</div>
+          <div class="stat-label">Avg/Month</div>
+        </div>
+      </div>
+
+      <!-- By Type -->
+      <div class="settings-section">
+        <div class="settings-title">Codes by Type</div>
+        <div class="settings-card">
+          <div class="settings-item">
+            <div class="settings-item-info">
+              <div class="settings-item-label">🎫 Scratchers</div>
+            </div>
+            <div style="font-family: var(--font-mono); color: var(--accent-purple);" id="scratchersTotal">0</div>
+          </div>
+          <div class="settings-item">
+            <div class="settings-item-info">
+              <div class="settings-item-label">⭐ SuperLotto Plus</div>
+            </div>
+            <div style="font-family: var(--font-mono); color: var(--accent-blue);" id="superlottoTotal">0</div>
+          </div>
+          <div class="settings-item">
+            <div class="settings-item-info">
+              <div class="settings-item-label">🎯 Fantasy 5</div>
+            </div>
+            <div style="font-family: var(--font-mono); color: var(--accent-green);" id="fantasy5Total">0</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings View -->
+    <div class="view" id="settingsView">
+      <h2 style="margin-bottom: 20px; font-size: 1.3rem;">Settings</h2>
+
+      <div class="settings-section">
+        <div class="settings-title">Notifications</div>
+        <div class="settings-card">
+          <div class="settings-item">
+            <div class="settings-item-info">
+              <div class="settings-item-label">Deadline Reminders</div>
+              <div class="settings-item-desc">Notify before Saturday 11:59 PM</div>
+            </div>
+            <div class="toggle" id="toggleDeadline" onclick="toggleSetting('deadlineReminder')"></div>
+          </div>
+          <div class="settings-item">
+            <div class="settings-item-info">
+              <div class="settings-item-label">Expiration Alerts</div>
+              <div class="settings-item-desc">Warn when codes are expiring soon</div>
+            </div>
+            <div class="toggle" id="toggleExpiry" onclick="toggleSetting('expiryAlert')"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-title">Data</div>
+        <div class="settings-card">
+          <div class="settings-item">
+            <div class="settings-item-info">
+              <div class="settings-item-label">Export Codes</div>
+              <div class="settings-item-desc">Download all codes as CSV</div>
+            </div>
+            <button style="padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-dark); color: var(--text-primary); cursor: pointer;" onclick="exportCodes()">Export</button>
+          </div>
+          <div class="settings-item">
+            <div class="settings-item-info">
+              <div class="settings-item-label">Import Codes</div>
+              <div class="settings-item-desc">Import from CSV file</div>
+            </div>
+            <label style="padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-dark); color: var(--text-primary); cursor: pointer;">
+              Import
+              <input type="file" accept=".csv" onchange="importCodes(this)" style="display: none;">
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-title">About</div>
+        <div class="settings-card">
+          <div class="settings-item">
+            <div class="settings-item-info">
+              <div class="settings-item-label">Version</div>
+              <div class="settings-item-desc">CA 2nd Chance Tracker v1.0.0</div>
+            </div>
+          </div>
+          <div class="settings-item">
+            <div class="settings-item-info">
+              <div class="settings-item-label">Storage Used</div>
+              <div class="settings-item-desc" id="storageUsed">Calculating...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-title">Danger Zone</div>
+        <button class="danger-btn" onclick="clearAllData()">Clear All Data</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Navigation -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" data-view="homeView">
+      <span class="nav-item-icon">🏠</span>
+      <span>Home</span>
+    </button>
+    <button class="nav-item" data-view="historyView">
+      <span class="nav-item-icon">📊</span>
+      <span>History</span>
+    </button>
+    <button class="nav-item" data-view="settingsView">
+      <span class="nav-item-icon">⚙️</span>
+      <span>Settings</span>
+    </button>
+  </nav>
+
+  <!-- Scanner Modal -->
+  <div class="modal-overlay" id="scannerModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Scan Ticket</div>
+        <button class="modal-close" onclick="closeScanner()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="scanner-container">
+          <video class="scanner-video" id="scannerVideo" playsinline></video>
+          <div class="scanner-overlay">
+            <div class="scanner-frame"></div>
+          </div>
+        </div>
+        <p class="scanner-hint">Position the barcode within the frame</p>
+        <div style="margin-top: 16px;">
+          <button class="submit-btn" onclick="closeScanner(); openManualEntry();" style="background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border);">
+            Enter Code Manually Instead
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manual Entry Modal -->
+  <div class="modal-overlay" id="manualEntryModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Add Code</div>
+        <button class="modal-close" onclick="closeManualEntry()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">2nd Chance Code</label>
+          <input type="text" class="form-input" id="codeInput" placeholder="Enter code" maxlength="30" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Ticket Type</label>
+          <select class="form-select" id="typeSelect">
+            <option value="scratchers">Scratchers</option>
+            <option value="superlotto">SuperLotto Plus</option>
+            <option value="fantasy5">Fantasy 5</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Game End Date (for Scratchers) / Purchase Date</label>
+          <input type="date" class="form-input" id="dateInput" style="font-family: var(--font-body); letter-spacing: normal;">
+        </div>
+        <button class="submit-btn" id="submitCode" onclick="addCode()">Add Code</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Install Prompt -->
+  <div class="install-prompt hidden" id="installPrompt">
+    <div class="install-prompt-content">
+      <div class="install-prompt-title">Install App</div>
+      <div class="install-prompt-desc">Add to home screen for quick access</div>
+    </div>
+    <button class="install-prompt-btn" onclick="installApp()">Install</button>
+    <button class="install-prompt-close" onclick="dismissInstall()">✕</button>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ==========================================
+    // DATA MANAGEMENT
+    // ==========================================
+    
+    const STORAGE_KEY = 'ca2ndchance_codes';
+    const SETTINGS_KEY = 'ca2ndchance_settings';
+    const HISTORY_KEY = 'ca2ndchance_history';
+    
+    let codes = [];
+    let settings = {
+      deadlineReminder: true,
+      expiryAlert: true
+    };
+    let codeReader = null;
+    let deferredPrompt = null;
+    let currentFilter = 'all';
+
+    // Load data from localStorage
+    function loadData() {
+      try {
+        const savedCodes = localStorage.getItem(STORAGE_KEY);
+        if (savedCodes) {
+          codes = JSON.parse(savedCodes);
+          // Check for expired codes
+          updateExpiredCodes();
+        }
+        
+        const savedSettings = localStorage.getItem(SETTINGS_KEY);
+        if (savedSettings) {
+          settings = { ...settings, ...JSON.parse(savedSettings) };
+        }
+      } catch (e) {
+        console.error('Error loading data:', e);
+      }
+    }
+
+    // Save codes to localStorage
+    function saveCodes() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(codes));
+        updateMonthlyHistory();
+      } catch (e) {
+        console.error('Error saving codes:', e);
+      }
+    }
+
+    // Save settings to localStorage
+    function saveSettings() {
+      try {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      } catch (e) {
+        console.error('Error saving settings:', e);
+      }
+    }
+
+    // Update monthly history for charts
+    function updateMonthlyHistory() {
+      const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '{}');
+      const now = new Date();
+      const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      
+      const thisMonthCodes = codes.filter(c => {
+        const codeDate = new Date(c.addedAt);
+        return codeDate.getMonth() === now.getMonth() && 
+               codeDate.getFullYear() === now.getFullYear();
+      });
+      
+      history[monthKey] = thisMonthCodes.length;
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    }
+
+    // ==========================================
+    // CODE MANAGEMENT
+    // ==========================================
+
+    function generateId() {
+      return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    }
+
+    function addCode(codeValue = null, type = null) {
+      const code = codeValue || document.getElementById('codeInput').value.trim().toUpperCase();
+      const ticketType = type || document.getElementById('typeSelect').value;
+      const dateInput = document.getElementById('dateInput').value;
+      
+      if (!code) {
+        showToast('Please enter a code', 'error');
+        return;
+      }
+
+      // Check for duplicates
+      if (codes.some(c => c.code === code)) {
+        showToast('This code already exists', 'error');
+        return;
+      }
+
+      // Check monthly limit
+      const thisMonth = getThisMonthCount();
+      if (thisMonth >= 500) {
+        showToast('Monthly limit of 500 codes reached', 'error');
+        return;
+      }
+
+      // Calculate expiry (180 days from game end date or purchase date)
+      const baseDate = dateInput ? new Date(dateInput) : new Date();
+      const expiryDate = new Date(baseDate);
+      expiryDate.setDate(expiryDate.getDate() + 180);
+
+      const newCode = {
+        id: generateId(),
+        code: code,
+        type: ticketType,
+        status: 'pending',
+        addedAt: new Date().toISOString(),
+        baseDate: baseDate.toISOString(),
+        expiresAt: expiryDate.toISOString(),
+        enteredAt: null
+      };
+
+      codes.unshift(newCode);
+      saveCodes();
+      renderCodes();
+      updateStats();
+      
+      closeManualEntry();
+      showToast('Code added successfully', 'success');
+      
+      // Reset form
+      document.getElementById('codeInput').value = '';
+      document.getElementById('dateInput').value = '';
+    }
+
+    function markAsEntered(id) {
+      const code = codes.find(c => c.id === id);
+      if (code) {
+        code.status = 'entered';
+        code.enteredAt = new Date().toISOString();
+        saveCodes();
+        renderCodes();
+        updateStats();
+        showToast('Marked as entered', 'success');
+      }
+    }
+
+    function deleteCode(id) {
+      if (confirm('Delete this code?')) {
+        codes = codes.filter(c => c.id !== id);
+        saveCodes();
+        renderCodes();
+        updateStats();
+        showToast('Code deleted', 'success');
+      }
+    }
+
+    function copyCode(code) {
+      navigator.clipboard.writeText(code).then(() => {
+        showToast('Code copied to clipboard', 'success');
+      }).catch(() => {
+        // Fallback for older browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = code;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        showToast('Code copied to clipboard', 'success');
+      });
+    }
+
+    function updateExpiredCodes() {
+      const now = new Date();
+      let updated = false;
+      
+      codes.forEach(code => {
+        if (code.status === 'pending' && new Date(code.expiresAt) < now) {
+          code.status = 'expired';
+          updated = true;
+        }
+      });
+      
+      if (updated) {
+        saveCodes();
+      }
+    }
+
+    // ==========================================
+    // RENDERING
+    // ==========================================
+
+    function renderCodes() {
+      const container = document.getElementById('codeList');
+      
+      let filteredCodes = codes;
+      if (currentFilter !== 'all') {
+        filteredCodes = codes.filter(c => c.status === currentFilter);
+      }
+      
+      if (filteredCodes.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">🎰</div>
+            <div class="empty-title">${currentFilter === 'all' ? 'No codes yet' : `No ${currentFilter} codes`}</div>
+            <div class="empty-text">${currentFilter === 'all' ? 'Scan or enter your first 2nd Chance code' : 'Codes will appear here when available'}</div>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = filteredCodes.map(code => {
+        const addedDate = new Date(code.addedAt).toLocaleDateString();
+        const expiryDate = new Date(code.expiresAt);
+        const now = new Date();
+        const daysUntilExpiry = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
+        const expiringSoon = daysUntilExpiry <= 30 && daysUntilExpiry > 0;
+        
+        let expiryText = '';
+        if (code.status === 'expired') {
+          expiryText = 'Expired';
+        } else if (daysUntilExpiry <= 0) {
+          expiryText = 'Expired';
+        } else if (daysUntilExpiry === 1) {
+          expiryText = 'Expires tomorrow';
+        } else {
+          expiryText = `Expires in ${daysUntilExpiry} days`;
+        }
+
+        return `
+          <div class="code-card">
+            <div class="code-card-header">
+              <div class="code-type">
+                <span class="code-type-badge ${code.type}">${getTypeLabel(code.type)}</span>
+              </div>
+              <span class="code-status ${code.status}">${code.status}</span>
+            </div>
+            <div class="code-value">${code.code}</div>
+            <div class="code-meta">
+              <span class="code-date">📅 Added ${addedDate}</span>
+              <span class="code-expiry ${expiringSoon ? 'soon' : ''}">${code.status !== 'entered' ? '⏳ ' + expiryText : ''}</span>
+            </div>
+            <div class="code-actions">
+              <button class="code-action-btn copy" onclick="copyCode('${code.code}')">
+                📋 Copy
+              </button>
+              ${code.status === 'pending' ? `
+                <button class="code-action-btn mark" onclick="markAsEntered('${code.id}')">
+                  ✓ Mark Entered
+                </button>
+              ` : ''}
+              <button class="code-action-btn delete" onclick="deleteCode('${code.id}')">
+                🗑️
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function getTypeLabel(type) {
+      switch (type) {
+        case 'scratchers': return 'Scratchers';
+        case 'superlotto': return 'SuperLotto';
+        case 'fantasy5': return 'Fantasy 5';
+        default: return type;
+      }
+    }
+
+    function updateStats() {
+      const pending = codes.filter(c => c.status === 'pending').length;
+      const entered = codes.filter(c => c.status === 'entered').length;
+      const thisMonth = getThisMonthCount();
+      
+      document.getElementById('pendingCount').textContent = pending;
+      document.getElementById('enteredCount').textContent = entered;
+      document.getElementById('thisMonthCount').textContent = thisMonth;
+      document.getElementById('monthlyUsed').textContent = thisMonth;
+      
+      const progressPercent = (thisMonth / 500) * 100;
+      const progressFill = document.getElementById('progressFill');
+      progressFill.style.width = `${progressPercent}%`;
+      progressFill.classList.toggle('warning', progressPercent >= 80);
+      
+      updateDeadline();
+      updateHistoryStats();
+    }
+
+    function getThisMonthCount() {
+      const now = new Date();
+      return codes.filter(c => {
+        const codeDate = new Date(c.addedAt);
+        return codeDate.getMonth() === now.getMonth() && 
+               codeDate.getFullYear() === now.getFullYear();
+      }).length;
+    }
+
+    function updateDeadline() {
+      const now = new Date();
+      const saturday = new Date(now);
+      
+      // Find next Saturday
+      const daysUntilSaturday = (6 - now.getDay() + 7) % 7;
+      saturday.setDate(now.getDate() + (daysUntilSaturday === 0 && now.getHours() >= 24 ? 7 : daysUntilSaturday));
+      saturday.setHours(23, 59, 0, 0);
+      
+      const diff = saturday - now;
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      
+      const deadlineEl = document.getElementById('deadlineTime');
+      
+      if (days === 0 && hours < 6) {
+        deadlineEl.textContent = `${hours}h ${minutes}m remaining`;
+        deadlineEl.classList.add('urgent');
+      } else if (days === 0) {
+        deadlineEl.textContent = `Today at 11:59 PM`;
+        deadlineEl.classList.add('urgent');
+      } else if (days === 1) {
+        deadlineEl.textContent = `Tomorrow at 11:59 PM`;
+        deadlineEl.classList.remove('urgent');
+      } else {
+        deadlineEl.textContent = `${days} days, ${hours}h remaining`;
+        deadlineEl.classList.remove('urgent');
+      }
+    }
+
+    function updateHistoryStats() {
+      const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '{}');
+      const totalAllTime = codes.length;
+      
+      // Calculate average
+      const months = Object.keys(history).length || 1;
+      const avgPerMonth = Math.round(totalAllTime / months);
+      
+      document.getElementById('totalAllTime').textContent = totalAllTime;
+      document.getElementById('avgPerMonth').textContent = avgPerMonth;
+      
+      // By type
+      document.getElementById('scratchersTotal').textContent = codes.filter(c => c.type === 'scratchers').length;
+      document.getElementById('superlottoTotal').textContent = codes.filter(c => c.type === 'superlotto').length;
+      document.getElementById('fantasy5Total').textContent = codes.filter(c => c.type === 'fantasy5').length;
+      
+      // Chart
+      renderHistoryChart();
+      
+      // Storage
+      const storageUsed = new Blob([JSON.stringify(codes)]).size;
+      document.getElementById('storageUsed').textContent = `${(storageUsed / 1024).toFixed(1)} KB`;
+    }
+
+    function renderHistoryChart() {
+      const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '{}');
+      const container = document.getElementById('historyChart');
+      
+      // Get last 6 months
+      const months = [];
+      const now = new Date();
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const label = d.toLocaleDateString('en-US', { month: 'short' });
+        months.push({ key, label, count: history[key] || 0 });
+      }
+      
+      const maxCount = Math.max(...months.map(m => m.count), 1);
+      
+      container.innerHTML = months.map(m => `
+        <div class="chart-bar-wrapper">
+          <div class="chart-bar" style="height: ${(m.count / maxCount) * 100}%"></div>
+          <span class="chart-label">${m.label}</span>
+        </div>
+      `).join('');
+    }
+
+    // ==========================================
+    // SCANNER
+    // ==========================================
+
+    async function openScanner() {
+      document.getElementById('scannerModal').classList.add('active');
+      
+      try {
+        const video = document.getElementById('scannerVideo');
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' }
+        });
+        video.srcObject = stream;
+        await video.play();
+        
+        // Initialize barcode reader
+        if (typeof ZXing !== 'undefined') {
+          codeReader = new ZXing.BrowserMultiFormatReader();
+          codeReader.decodeFromVideoDevice(null, 'scannerVideo', (result, err) => {
+            if (result) {
+              const code = result.getText();
+              closeScanner();
+              
+              // Open manual entry with pre-filled code
+              document.getElementById('manualEntryModal').classList.add('active');
+              document.getElementById('codeInput').value = code;
+              showToast('Code scanned!', 'success');
+            }
+          });
+        }
+      } catch (err) {
+        console.error('Camera error:', err);
+        showToast('Could not access camera', 'error');
+        closeScanner();
+        openManualEntry();
+      }
+    }
+
+    function closeScanner() {
+      document.getElementById('scannerModal').classList.remove('active');
+      
+      const video = document.getElementById('scannerVideo');
+      if (video.srcObject) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+      }
+      
+      if (codeReader) {
+        codeReader.reset();
+        codeReader = null;
+      }
+    }
+
+    // ==========================================
+    // MANUAL ENTRY
+    // ==========================================
+
+    function openManualEntry() {
+      document.getElementById('manualEntryModal').classList.add('active');
+      setTimeout(() => {
+        document.getElementById('codeInput').focus();
+      }, 300);
+    }
+
+    function closeManualEntry() {
+      document.getElementById('manualEntryModal').classList.remove('active');
+    }
+
+    // ==========================================
+    // SETTINGS
+    // ==========================================
+
+    function toggleSetting(key) {
+      settings[key] = !settings[key];
+      saveSettings();
+      updateSettingsUI();
+    }
+
+    function updateSettingsUI() {
+      document.getElementById('toggleDeadline').classList.toggle('active', settings.deadlineReminder);
+      document.getElementById('toggleExpiry').classList.toggle('active', settings.expiryAlert);
+    }
+
+    function exportCodes() {
+      const csv = [
+        ['Code', 'Type', 'Status', 'Added', 'Expires', 'Entered'],
+        ...codes.map(c => [
+          c.code,
+          c.type,
+          c.status,
+          c.addedAt,
+          c.expiresAt,
+          c.enteredAt || ''
+        ])
+      ].map(row => row.join(',')).join('\n');
+      
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `2nd-chance-codes-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      showToast('Codes exported', 'success');
+    }
+
+    function importCodes(input) {
+      const file = input.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const lines = e.target.result.split('\n').slice(1); // Skip header
+        let imported = 0;
+        
+        lines.forEach(line => {
+          const [code, type, status, addedAt, expiresAt, enteredAt] = line.split(',');
+          if (code && !codes.some(c => c.code === code.trim())) {
+            codes.push({
+              id: generateId(),
+              code: code.trim(),
+              type: type || 'scratchers',
+              status: status || 'pending',
+              addedAt: addedAt || new Date().toISOString(),
+              expiresAt: expiresAt || new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(),
+              enteredAt: enteredAt || null
+            });
+            imported++;
+          }
+        });
+        
+        saveCodes();
+        renderCodes();
+        updateStats();
+        showToast(`Imported ${imported} codes`, 'success');
+      };
+      reader.readAsText(file);
+      input.value = '';
+    }
+
+    function clearAllData() {
+      if (confirm('Are you sure you want to delete all data? This cannot be undone.')) {
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(HISTORY_KEY);
+        codes = [];
+        renderCodes();
+        updateStats();
+        showToast('All data cleared', 'success');
+      }
+    }
+
+    // ==========================================
+    // NAVIGATION
+    // ==========================================
+
+    function initNavigation() {
+      document.querySelectorAll('.nav-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const viewId = btn.dataset.view;
+          
+          // Update nav
+          document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          
+          // Update views
+          document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+          document.getElementById(viewId).classList.add('active');
+        });
+      });
+      
+      // Tab filtering
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          currentFilter = tab.dataset.filter;
+          renderCodes();
+        });
+      });
+    }
+
+    // ==========================================
+    // TOAST
+    // ==========================================
+
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = `toast ${type} show`;
+      
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 3000);
+    }
+
+    // ==========================================
+    // PWA INSTALL
+    // ==========================================
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      document.getElementById('installPrompt').classList.remove('hidden');
+    });
+
+    function installApp() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choice) => {
+          if (choice.outcome === 'accepted') {
+            showToast('App installed!', 'success');
+          }
+          deferredPrompt = null;
+          document.getElementById('installPrompt').classList.add('hidden');
+        });
+      }
+    }
+
+    function dismissInstall() {
+      document.getElementById('installPrompt').classList.add('hidden');
+    }
+
+    // ==========================================
+    // INITIALIZATION
+    // ==========================================
+
+    function init() {
+      loadData();
+      renderCodes();
+      updateStats();
+      updateSettingsUI();
+      initNavigation();
+      
+      // Update deadline every minute
+      setInterval(updateDeadline, 60000);
+      
+      // Check for expired codes daily
+      setInterval(updateExpiredCodes, 24 * 60 * 60 * 1000);
+      
+      // Close modals on overlay click
+      document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', (e) => {
+          if (e.target === overlay) {
+            overlay.classList.remove('active');
+            if (overlay.id === 'scannerModal') {
+              closeScanner();
+            }
+          }
+        });
+      });
+      
+      // Handle Enter key in code input
+      document.getElementById('codeInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          addCode();
+        }
+      });
+    }
+
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(registration => {
+            console.log('SW registered:', registration.scope);
+          })
+          .catch(err => {
+            console.log('SW registration failed:', err);
+          });
+      });
+    }
+
+    // Start app
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>

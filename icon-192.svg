@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <defs>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f4c430"/>
+      <stop offset="100%" style="stop-color:#c9a227"/>
+    </linearGradient>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#0d0d1a"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="192" height="192" rx="40" fill="url(#bgGrad)"/>
+  
+  <!-- Decorative circle -->
+  <circle cx="96" cy="96" r="70" fill="none" stroke="url(#goldGrad)" stroke-width="3" opacity="0.3"/>
+  
+  <!-- "2" text -->
+  <text x="65" y="125" font-family="Arial Black, sans-serif" font-size="90" font-weight="900" fill="url(#goldGrad)">2</text>
+  
+  <!-- Star burst -->
+  <g transform="translate(125, 55)">
+    <polygon points="0,-18 4,-6 17,-6 7,2 11,15 0,7 -11,15 -7,2 -17,-6 -4,-6" fill="#f4c430"/>
+  </g>
+  
+  <!-- Small decorative elements -->
+  <circle cx="45" cy="55" r="4" fill="#f4c430" opacity="0.6"/>
+  <circle cx="147" cy="137" r="3" fill="#f4c430" opacity="0.6"/>
+  <circle cx="55" cy="145" r="2" fill="#f4c430" opacity="0.4"/>
+</svg>
