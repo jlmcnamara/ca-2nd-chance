@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ca-2nd-chance-v3';
+const CACHE_NAME = 'ca-2nd-chance-v4';
 const urlsToCache = [
   './',
   './index.html',
