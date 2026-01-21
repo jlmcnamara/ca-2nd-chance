@@ -317,6 +317,46 @@
       font-size: 1.5rem;
     }
 
+    /* Batch Copy Button */
+    .batch-copy-btn {
+      width: 100%;
+      padding: 14px 20px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 24px;
+      transition: all 0.2s ease;
+    }
+
+    .batch-copy-btn:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--gold);
+    }
+
+    .batch-copy-btn:active {
+      transform: scale(0.98);
+    }
+
+    .batch-count {
+      background: var(--gold);
+      color: var(--bg-dark);
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      min-width: 24px;
+      text-align: center;
+    }
+
     /* Tabs */
     .tabs {
       display: flex;
@@ -358,12 +398,55 @@
       gap: 12px;
     }
 
+    /* Swipeable Card Container */
+    .swipe-container {
+      position: relative;
+      overflow: hidden;
+      border-radius: 16px;
+    }
+
+    .swipe-actions {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .swipe-actions.left {
+      left: 0;
+      background: linear-gradient(90deg, var(--accent-green), rgba(0, 214, 143, 0.7));
+      color: white;
+    }
+
+    .swipe-actions.right {
+      right: 0;
+      background: linear-gradient(270deg, var(--accent-red), rgba(255, 107, 107, 0.7));
+      color: white;
+    }
+
+    .swipe-container.swiping .swipe-actions {
+      opacity: 1;
+    }
+
     .code-card {
       background: var(--bg-card);
       border-radius: 16px;
       padding: 16px;
       border: 1px solid var(--border);
-      transition: all 0.2s ease;
+      transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+      position: relative;
+      z-index: 1;
+    }
+
+    .code-card.swiping {
+      transition: none;
     }
 
     .code-card:hover {
@@ -1136,6 +1219,13 @@
         </button>
       </div>
 
+      <!-- Batch Copy Button -->
+      <button class="batch-copy-btn" id="batchCopyBtn" onclick="copyAllPending()" style="display: none;">
+        <span>📋</span>
+        <span>Copy All Pending Codes</span>
+        <span class="batch-count" id="batchCount">0</span>
+      </button>
+
       <!-- Quick Links -->
       <div class="quick-links">
         <a href="https://www.calottery.com/2nd-chance" target="_blank" rel="noopener" class="quick-link">
@@ -1267,7 +1357,7 @@
           <div class="settings-item">
             <div class="settings-item-info">
               <div class="settings-item-label">Version</div>
-              <div class="settings-item-desc">CA 2nd Chance Tracker v1.0.0</div>
+              <div class="settings-item-desc">CA 2nd Chance Tracker v1.1.0</div>
             </div>
           </div>
           <div class="settings-item">
@@ -1537,6 +1627,29 @@
       });
     }
 
+    function copyAllPending() {
+      const pendingCodes = codes.filter(c => c.status === 'pending');
+      if (pendingCodes.length === 0) {
+        showToast('No pending codes to copy', 'error');
+        return;
+      }
+
+      const codeText = pendingCodes.map(c => c.code).join('\n');
+
+      navigator.clipboard.writeText(codeText).then(() => {
+        showToast(`Copied ${pendingCodes.length} code${pendingCodes.length === 1 ? '' : 's'} to clipboard`, 'success');
+      }).catch(() => {
+        // Fallback for older browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = codeText;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        showToast(`Copied ${pendingCodes.length} code${pendingCodes.length === 1 ? '' : 's'} to clipboard`, 'success');
+      });
+    }
+
     function updateExpiredCodes() {
       const now = new Date();
       let updated = false;
@@ -1582,7 +1695,7 @@
         const now = new Date();
         const daysUntilExpiry = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
         const expiringSoon = daysUntilExpiry <= 30 && daysUntilExpiry > 0;
-        
+
         let expiryText = '';
         if (code.status === 'expired') {
           expiryText = 'Expired';
@@ -1595,34 +1708,41 @@
         }
 
         return `
-          <div class="code-card">
-            <div class="code-card-header">
-              <div class="code-type">
-                <span class="code-type-badge ${code.type}">${getTypeLabel(code.type)}</span>
+          <div class="swipe-container" data-id="${code.id}" data-status="${code.status}">
+            ${code.status === 'pending' ? '<div class="swipe-actions left">✓ Entered</div>' : ''}
+            <div class="swipe-actions right">🗑️ Delete</div>
+            <div class="code-card">
+              <div class="code-card-header">
+                <div class="code-type">
+                  <span class="code-type-badge ${code.type}">${getTypeLabel(code.type)}</span>
+                </div>
+                <span class="code-status ${code.status}">${code.status}</span>
               </div>
-              <span class="code-status ${code.status}">${code.status}</span>
-            </div>
-            <div class="code-value">${code.code}</div>
-            <div class="code-meta">
-              <span class="code-date">📅 Added ${addedDate}</span>
-              <span class="code-expiry ${expiringSoon ? 'soon' : ''}">${code.status !== 'entered' ? '⏳ ' + expiryText : ''}</span>
-            </div>
-            <div class="code-actions">
-              <button class="code-action-btn copy" onclick="copyCode('${code.code}')">
-                📋 Copy
-              </button>
-              ${code.status === 'pending' ? `
-                <button class="code-action-btn mark" onclick="markAsEntered('${code.id}')">
-                  ✓ Mark Entered
+              <div class="code-value">${code.code}</div>
+              <div class="code-meta">
+                <span class="code-date">📅 Added ${addedDate}</span>
+                <span class="code-expiry ${expiringSoon ? 'soon' : ''}">${code.status !== 'entered' ? '⏳ ' + expiryText : ''}</span>
+              </div>
+              <div class="code-actions">
+                <button class="code-action-btn copy" onclick="copyCode('${code.code}')">
+                  📋 Copy
                 </button>
-              ` : ''}
-              <button class="code-action-btn delete" onclick="deleteCode('${code.id}')">
-                🗑️
-              </button>
+                ${code.status === 'pending' ? `
+                  <button class="code-action-btn mark" onclick="markAsEntered('${code.id}')">
+                    ✓ Mark Entered
+                  </button>
+                ` : ''}
+                <button class="code-action-btn delete" onclick="deleteCode('${code.id}')">
+                  🗑️
+                </button>
+              </div>
             </div>
           </div>
         `;
       }).join('');
+
+      // Initialize swipe handlers for new cards
+      initSwipeHandlers();
     }
 
     function getTypeLabel(type) {
@@ -1638,17 +1758,27 @@
       const pending = codes.filter(c => c.status === 'pending').length;
       const entered = codes.filter(c => c.status === 'entered').length;
       const thisMonth = getThisMonthCount();
-      
+
       document.getElementById('pendingCount').textContent = pending;
       document.getElementById('enteredCount').textContent = entered;
       document.getElementById('thisMonthCount').textContent = thisMonth;
       document.getElementById('monthlyUsed').textContent = thisMonth;
-      
+
+      // Update batch copy button visibility and count
+      const batchCopyBtn = document.getElementById('batchCopyBtn');
+      const batchCount = document.getElementById('batchCount');
+      if (pending > 0) {
+        batchCopyBtn.style.display = 'flex';
+        batchCount.textContent = pending;
+      } else {
+        batchCopyBtn.style.display = 'none';
+      }
+
       const progressPercent = (thisMonth / 500) * 100;
       const progressFill = document.getElementById('progressFill');
       progressFill.style.width = `${progressPercent}%`;
       progressFill.classList.toggle('warning', progressPercent >= 80);
-      
+
       updateDeadline();
       updateHistoryStats();
     }
@@ -1891,6 +2021,85 @@
         updateStats();
         showToast('All data cleared', 'success');
       }
+    }
+
+    // ==========================================
+    // SWIPE GESTURES
+    // ==========================================
+
+    function initSwipeHandlers() {
+      const containers = document.querySelectorAll('.swipe-container');
+
+      containers.forEach(container => {
+        const card = container.querySelector('.code-card');
+        const id = container.dataset.id;
+        const status = container.dataset.status;
+
+        let startX = 0;
+        let currentX = 0;
+        let isDragging = false;
+
+        const SWIPE_THRESHOLD = 80;
+        const MAX_SWIPE = 100;
+
+        function handleTouchStart(e) {
+          // Ignore if touching a button
+          if (e.target.closest('button')) return;
+
+          startX = e.touches[0].clientX;
+          isDragging = true;
+          card.classList.add('swiping');
+          container.classList.add('swiping');
+        }
+
+        function handleTouchMove(e) {
+          if (!isDragging) return;
+
+          currentX = e.touches[0].clientX - startX;
+
+          // Limit swipe range
+          if (status === 'pending') {
+            // Allow both directions for pending
+            currentX = Math.max(-MAX_SWIPE, Math.min(MAX_SWIPE, currentX));
+          } else {
+            // Only allow left swipe (delete) for non-pending
+            currentX = Math.max(-MAX_SWIPE, Math.min(0, currentX));
+          }
+
+          card.style.transform = `translateX(${currentX}px)`;
+        }
+
+        function handleTouchEnd() {
+          if (!isDragging) return;
+          isDragging = false;
+          card.classList.remove('swiping');
+          container.classList.remove('swiping');
+
+          // Check if threshold met
+          if (currentX >= SWIPE_THRESHOLD && status === 'pending') {
+            // Swipe right - mark as entered
+            card.style.transform = `translateX(${MAX_SWIPE}px)`;
+            setTimeout(() => {
+              markAsEntered(id);
+            }, 150);
+          } else if (currentX <= -SWIPE_THRESHOLD) {
+            // Swipe left - delete
+            card.style.transform = `translateX(-${MAX_SWIPE}px)`;
+            setTimeout(() => {
+              deleteCode(id);
+            }, 150);
+          } else {
+            // Snap back
+            card.style.transform = 'translateX(0)';
+          }
+
+          currentX = 0;
+        }
+
+        card.addEventListener('touchstart', handleTouchStart, { passive: true });
+        card.addEventListener('touchmove', handleTouchMove, { passive: true });
+        card.addEventListener('touchend', handleTouchEnd);
+      });
     }
 
     // ==========================================
