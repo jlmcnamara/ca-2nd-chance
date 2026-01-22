@@ -1308,6 +1308,76 @@
       padding: 4px;
     }
 
+    /* Winner Check Results */
+    .winner-results {
+      margin-top: 16px;
+    }
+
+    .winner-card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 20px;
+      border-radius: 16px;
+      margin-bottom: 12px;
+    }
+
+    .winner-card.won {
+      background: linear-gradient(135deg, rgba(0, 214, 143, 0.2) 0%, rgba(244, 196, 48, 0.2) 100%);
+      border: 2px solid var(--accent-green);
+      animation: winner-pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes winner-pulse {
+      0%, 100% { box-shadow: 0 0 20px rgba(0, 214, 143, 0.3); }
+      50% { box-shadow: 0 0 40px rgba(244, 196, 48, 0.5); }
+    }
+
+    .winner-card.no-win {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+    }
+
+    .winner-icon {
+      font-size: 2.5rem;
+    }
+
+    .winner-info {
+      flex: 1;
+    }
+
+    .winner-title {
+      font-weight: 700;
+      font-size: 1.2rem;
+      margin-bottom: 4px;
+    }
+
+    .winner-card.won .winner-title {
+      color: var(--accent-green);
+    }
+
+    .winner-matches {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    .winner-match-code {
+      display: inline-block;
+      background: var(--gold);
+      color: var(--bg-dark);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin: 4px 4px 4px 0;
+    }
+
+    .winner-desc {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
     /* Update Banner */
     .update-banner {
       position: fixed;
@@ -1510,6 +1580,42 @@
               <div class="settings-item-label">🎯 Fantasy 5</div>
             </div>
             <div style="font-family: var(--font-mono); color: var(--accent-green);" id="fantasy5Total">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Check Winners -->
+      <div class="settings-section">
+        <div class="settings-title">🏆 Check Winners</div>
+        <div class="settings-card">
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;">
+            Paste winning codes from CA Lottery email to check if you won
+          </p>
+          <textarea
+            id="winnerCodesInput"
+            placeholder="Paste winning codes here (one per line or comma-separated)"
+            style="width: 100%; min-height: 100px; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-dark); color: var(--text-primary); font-family: var(--font-mono); font-size: 0.85rem; resize: vertical;"
+          ></textarea>
+          <button class="submit-btn" onclick="checkWinners()" style="margin-top: 12px; width: 100%;">
+            🔍 Check My Codes
+          </button>
+        </div>
+
+        <!-- Winner Results -->
+        <div class="winner-results" id="winnerResults" style="display: none;">
+          <div class="winner-card won" id="winnerMatchCard" style="display: none;">
+            <div class="winner-icon">🎉</div>
+            <div class="winner-info">
+              <div class="winner-title">YOU WON!</div>
+              <div class="winner-matches" id="winnerMatches"></div>
+            </div>
+          </div>
+          <div class="winner-card no-win" id="noWinCard" style="display: none;">
+            <div class="winner-icon">😔</div>
+            <div class="winner-info">
+              <div class="winner-title">No Matches</div>
+              <div class="winner-desc">None of your entered codes matched this drawing</div>
+            </div>
           </div>
         </div>
       </div>
@@ -1807,11 +1913,22 @@
       document.getElementById('dateInput').value = '';
     }
 
+    function getNextDrawingDate() {
+      const now = new Date();
+      const dayOfWeek = now.getDay();
+      const daysUntilSaturday = (6 - dayOfWeek + 7) % 7 || 7;
+      const nextSaturday = new Date(now);
+      nextSaturday.setDate(now.getDate() + daysUntilSaturday);
+      nextSaturday.setHours(23, 59, 0, 0);
+      return nextSaturday.toISOString();
+    }
+
     function markAsEntered(id) {
       const code = codes.find(c => c.id === id);
       if (code) {
         code.status = 'entered';
         code.enteredAt = new Date().toISOString();
+        code.drawingDate = getNextDrawingDate();
         saveCodes();
         renderCodes();
         updateStats();
@@ -1865,6 +1982,64 @@
         document.body.removeChild(textarea);
         showToast(`Copied ${pendingCodes.length} code${pendingCodes.length === 1 ? '' : 's'} to clipboard`, 'success');
       });
+    }
+
+    function checkWinners() {
+      const input = document.getElementById('winnerCodesInput').value.trim();
+      if (!input) {
+        showToast('Please paste winning codes first', 'error');
+        return;
+      }
+
+      // Parse winning codes (handle newlines, commas, spaces)
+      const winningCodes = input
+        .toUpperCase()
+        .split(/[\n,\s]+/)
+        .map(c => c.trim())
+        .filter(c => c.length > 0);
+
+      if (winningCodes.length === 0) {
+        showToast('No valid codes found', 'error');
+        return;
+      }
+
+      // Get all entered codes
+      const enteredCodes = codes.filter(c => c.status === 'entered');
+
+      // Find matches
+      const matches = enteredCodes.filter(c =>
+        winningCodes.some(w => c.code.includes(w) || w.includes(c.code) || c.code === w)
+      );
+
+      // Show results
+      const resultsDiv = document.getElementById('winnerResults');
+      const matchCard = document.getElementById('winnerMatchCard');
+      const noWinCard = document.getElementById('noWinCard');
+      const matchesDiv = document.getElementById('winnerMatches');
+
+      resultsDiv.style.display = 'block';
+
+      if (matches.length > 0) {
+        matchCard.style.display = 'flex';
+        noWinCard.style.display = 'none';
+        matchesDiv.innerHTML = matches.map(m =>
+          `<span class="winner-match-code">${m.code}</span>`
+        ).join('');
+
+        // Mark as winner in storage
+        matches.forEach(m => {
+          const code = codes.find(c => c.id === m.id);
+          if (code) code.isWinner = true;
+        });
+        saveCodes();
+
+        haptic('success');
+        showToast(`🎉 ${matches.length} winning code${matches.length > 1 ? 's' : ''} found!`, 'success');
+      } else {
+        matchCard.style.display = 'none';
+        noWinCard.style.display = 'flex';
+        showToast('No matches found', 'error');
+      }
     }
 
     function updateExpiredCodes() {
